@@ -2,9 +2,13 @@
 
 목표: KOFIC/KMDb·서비스 리뷰 → S3 원본/manifest → Python 적재 → PostgreSQL STG → dbt DW/Mart → 검증된 서비스 게시.
 
-현재 원본 수집과 순수 Python 정제·식별 및 PostgreSQL 게시 함수가 있습니다.
-분석용 PostgreSQL 적재, dbt 프로젝트, 리뷰 추출과 end-to-end DAG는 아직 구현하지 않았습니다.
+원본 수집, PostgreSQL STG 적재, dbt 8개 모델, 리뷰 추출과 게시 복구를 구현했습니다.
+격리 DB 통합 검사와 실제 플랫폼의 빈 데이터 기준 dbt 27개 모델/품질 검사가 통과했습니다.
+기존 초기 영화 JSON 5,985건을 실제 Airflow DAG로 적재했습니다. 새 API 수집·리뷰 연결·서비스 게시는 아직 수행하지 않았습니다.
 클라우드 웨어하우스 구현은 삭제했습니다. 향후 Snowflake PoC는 별도 작업으로 새로 개발합니다.
+
+테이블별 보존·삭제 후보와 신규 개발 순서는 [실측 기반 테이블 계획](phase1-table-plan.md)을 따릅니다.
+구형 제어 테이블 17개를 제거하고 Workbench 13개를 보존했습니다. [실행 안내](phase1-pipeline.md)에 설정과 검증 범위를 기록합니다.
 
 1. 원본 한 묶음을 PostgreSQL STG에 적재하고 입력 해시·실행 이력·중복 방지를 구현합니다.
 2. PostgreSQL용 dbt 프로젝트와 실행 계정을 새로 구성합니다.

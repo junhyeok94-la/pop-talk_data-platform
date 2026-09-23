@@ -4,18 +4,21 @@
 [애플리케이션 저장소](https://github.com/junhyeok94-la/pop-talk_application)와 분리해 관리합니다.
 [코드 출처](docs/provenance.md) · [저장소 간 계약](docs/repository-boundary.md)
 
-현재 구현은 **S3 원본 수집과 순수 Python 정제·식별 로직**입니다.
-PostgreSQL STG 적재와 dbt DW/Mart, 리뷰 추출 및 게시 DAG는 다음 Phase 1 작업입니다.
+현재 구현은 **S3 원본 수집 → PostgreSQL STG → dbt DW/Mart → 선택적 서비스 게시**입니다.
+기존 초기 영화 데이터셋 5,985건을 Airflow로 STG·DW·마트에 적재했습니다.
+리뷰는 서비스 DB의 읽기 전용 스냅샷으로 집계하며 실제 리뷰 연결·서비스 게시는 아직 수행하지 않았습니다.
 기존 클라우드 웨어하우스 파이프라인과 전용 dbt 프로젝트는 제거했습니다.
 향후 Snowflake PoC는 별도로 개발하며 현재 실행 경로에 포함하지 않습니다.
 
 | 경로 | 내용 |
 |---|---|
-| `orchestration/airflow/dags` | 원본 수집·연결 점검 및 기존 선택적 모델 실험 DAG |
+| `orchestration/airflow/dags` | 원본 수집·연결 점검·Workbench 재시도 검증 DAG |
 | `orchestration/airflow/modules/pipelines/collectors` | KOFIC/KMDb·흥행 원본 수집 |
 | `orchestration/airflow/modules/pipelines/transforms` | 저장소와 무관한 Python 원본 검증·정제 |
 | `orchestration/airflow/modules/pipelines/modeling` | 영화 식별·매핑 계약 |
 | `orchestration/airflow/modules/pipelines/orchestration` | Raw Asset 계약·PostgreSQL 서비스 게시 함수 |
+| `orchestration/airflow/modules/pipelines/platform` | STG 스키마·멱등 적재·리뷰 추출·dbt 실행·게시 복구 |
+| `transformation/dbt` | PostgreSQL 영화·날짜·흥행·리뷰 모델과 분석 마트 |
 | `orchestration/airflow/tests` | 파이프라인·플러그인 검사 |
 | `orchestration/airflow/plugins` | 기존 Airflow Workbench |
 | `orchestration/model_worker`, `datasets`, `distribution` | 선택적인 모델 실험·플러그인 배포 도구 |
@@ -29,7 +32,7 @@ python scripts/configure.py
 docker compose up -d --build
 ```
 
-`airflow-init`이 Airflow DB·관리자·Workbench·모델 실행 Pool을 준비합니다.
+`airflow-init`이 Airflow DB·관리자·Workbench·플랫폼 실행 계정·STG를 준비합니다.
 초기화에 클라우드 계정, 원본 수집 API 키, 서비스 DB 연결은 필요하지 않습니다.
 Airflow는 [localhost:8080](http://localhost:8080), 플랫폼 PostgreSQL은 55433 포트입니다.
 최초 관리자 정보는 Git에서 제외된 `.local/config/airflow.env`에 있습니다.
@@ -42,7 +45,7 @@ docker compose stop
 ```
 
 기본 구성은 DB·Airflow 프로세스 4개·일회성 초기화 서비스 1개입니다.
-triggerer는 기존 선택적 모델 실험 DAG의 비동기 대기를 지원합니다.
+모델 실험 DAG는 기본 목록에서 제거했습니다. triggerer와 선택적 모델 도구는 구성에 남아 있습니다.
 
 ## 원본 수집
 
@@ -57,12 +60,15 @@ triggerer는 기존 선택적 모델 실험 DAG의 비동기 대기를 지원합
 
 ## 서비스 DB와 선택 기능
 
-서비스 DB는 별도 저장소·볼륨입니다. 향후 게시 연결은 `airflow.env`의
+서비스 DB는 별도 저장소·볼륨입니다. 게시 연결은 `airflow.env`의
 `POP_TALK_POSTGRES_*`로 설정합니다. Docker Desktop 기본 주소는 `host.docker.internal:55432`입니다.
 일반 Linux에서는 컨테이너에서 접근 가능한 주소를 지정합니다.
-서비스 게시 함수는 보존했지만 이를 실행하는 Phase 1 DAG는 아직 없습니다.
+`pop_talk_warehouse`가 원본 적재와 dbt 검사를 수행합니다. 서비스 게시는 기본 비활성이며
+수동 실행의 `publish_service=true`로 선택합니다. 리뷰 DAG는 별도 읽기 계정이 필요합니다.
+실행 순서·설정·복구·검증 방법은 [Phase 1 실행 안내](docs/phase1-pipeline.md)를 참고합니다.
 
-GPU 모델 실험이 필요한 경우에만 실행합니다.
+GPU 모델 워커가 필요한 경우에만 실행합니다. 아래 명령은 워커만 추가하며,
+학습·평가 DAG는 별도로 생성해야 합니다.
 
 ```powershell
 ./orchestration/airflow/scripts/prepare-model-lab.ps1
@@ -75,5 +81,6 @@ docker compose -f compose.yaml -f compose.mlops.yaml up -d --build
 [회귀 검사](orchestration/airflow/tests/README.md)
 
 현재 범위와 검사 결과는 [Phase 1 정리 검증](docs/phase1-cleanup-validation.md)을 참고합니다.
+DB 보존·삭제 후보와 신규 개발 대상은 [테이블 계획](docs/phase1-table-plan.md)에 정리했습니다.
 
 `docs/qa`의 과거 검증 기록은 현재 실행 성공의 증빙이 아닙니다.

@@ -13,6 +13,7 @@ node --test orchestration/airflow/tests/test_workbench_navigation.cjs orchestrat
 ```
 
 - `pipelines/`: 수집·변환·식별·Raw Asset·PostgreSQL 서비스 게시 계약 검증.
+- `pipelines/platform/`: Phase 1 적재·dbt·리뷰·게시 복구. 실행 중인 Docker에서 `./scripts/check-phase1.ps1`로 별도 DB를 생성해 검증하고 자동 삭제합니다. 업무 DB에 fixture를 넣지 않습니다.
 - `smoke/`: 실제 API·GPU·DB를 대상으로 수동 실행하는 검사. 파일의 설명과 전제 조건을 확인한 뒤 개별 실행합니다.
 - `benchmarks/`: 부하·성능 측정. 일반 회귀 검사와 별도로 실행합니다.
 

@@ -1,11 +1,19 @@
 """Validate raw collection and platform DAG contracts without external I/O."""
 from datetime import timedelta
 import os
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
 from airflow.dag_processing.dagbag import DagBag
 from airflow.serialization.serialized_objects import DagSerialization
 
+# Direct script execution otherwise puts tests/pipelines ahead of the runtime package.
+sys.path.insert(0, os.environ.get('POP_TALK_PROJECT_ROOT','/opt/airflow/modules'))
+
 DAG_FOLDER = os.environ.get("AIRFLOW__CORE__DAGS_FOLDER", "/opt/airflow/dags")
 EDGES = {
+    'pop_talk_warehouse': {('resolve_inputs','load_stg'),('load_stg','build_and_publish')},
+    'pop_talk_reviews_warehouse': {('load_review_snapshot','build_review_marts')},
     "pop_talk_environment_check": {("check_project_mount", "check_platform_postgres")},
     "pop_talk_s3_canary": {("check_bucket", "inspect_prefixes")},
     "pop_talk_movie_raw_daily": {
@@ -28,8 +36,7 @@ def edges(dag):
 def check_contracts(dag_bag=None):
     bag = dag_bag or DagBag(DAG_FOLDER)
     assert not bag.import_errors, bag.import_errors
-    optional = {name for name, dag in bag.dags.items()
-                if "model-lab" in dag.tags or name == "workbench_retry_verification"}
+    optional = {"workbench_retry_verification"}
     assert set(bag.dags) == set(EDGES) | optional, set(bag.dags)
     for name, expected in EDGES.items():
         dag = bag.dags[name]
@@ -52,6 +59,28 @@ def check_contracts(dag_bag=None):
     assert daily.params.get_param("days_back").schema["maximum"] == 31
     assert initial.params.get_param("max_movies_per_year").schema["maximum"] == 10000
     assert daily.get_task("validate_daily").outlets, "Raw READY must emit an Asset event"
+    warehouse = bag.dags['pop_talk_warehouse']
+    assert warehouse.is_paused_upon_creation and warehouse.max_active_runs == 1
+    assert warehouse.params['publish_service'] is False
+    resolve = warehouse.get_task('resolve_inputs').python_callable
+    bucket = 'amzn-s3-pop-talk-dw-047342411109-ap-northeast-2-an'
+    uri = f's3://{bucket}/manifests/movie_api_daily/v1/DAILY_READY'
+    key = 'manifests/movie_api_daily/v1/collection_date=2026-09-23/run_id=' + 'a'*24 + '/DAILY_READY.json'
+    metadata = dict(contract_version=1,bucket=bucket,ready_manifest_key=key,
+        source_dag_id='pop_talk_movie_raw_daily',source_run_id='source-run',
+        collection_date='2026-09-23',raw_run_id='a'*24)
+    event = SimpleNamespace(source_dag_id='pop_talk_movie_raw_daily',source_run_id='source-run',extra=metadata)
+    context = {'dag_run':SimpleNamespace(run_type='asset_triggered'),
+               'params':{'initial_success_manifest_key':'','ready_manifest_key':''},
+               'triggering_asset_events':{uri:[event]}}
+    with patch.dict(resolve.__globals__, get_current_context=lambda:context):
+        assert resolve() == [metadata]
+        context['dag_run'].run_type='manual'
+        context['params']['initial_success_manifest_key']='manifests/movie_api/v1/run_id='+'b'*24+'/SUCCESS.json'
+        assert resolve()[0]['kind']=='initial'
+        context['params']['initial_success_manifest_key']=''
+        context['params']['initial_snapshot_sha256']='c'*64
+        assert resolve()==[{'kind':'legacy_snapshot','sha256':'c'*64}]
     for task in initial.tasks:
         assert task.retry_exponential_backoff and task.max_retry_delay == timedelta(minutes=30)
     assert bag.dags["pop_talk_environment_check"].schedule is None

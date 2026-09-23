@@ -43,6 +43,17 @@ def main():
         "POP_TALK_POSTGRES_HOST=host.docker.internal", "POP_TALK_POSTGRES_PORT=55432",
         "POP_TALK_POSTGRES_DB=pop_talk_local", "POP_TALK_POSTGRES_USER=pop_talk_local",
         "POP_TALK_POSTGRES_PASSWORD="])
+    # Upgrade existing local configuration without changing existing credentials.
+    airflow_path = ROOT / '.local/config/airflow.env'
+    airflow_values = read_env('.local/config/airflow.env')
+    additions = {
+        'POP_TALK_PLATFORM_POSTGRES_USER': 'platform_pipeline',
+        'POP_TALK_PLATFORM_POSTGRES_PASSWORD': secrets.token_hex(24),
+    }
+    missing = [f'{key}={value}' for key,value in additions.items() if key not in airflow_values]
+    if missing:
+        with airflow_path.open('a', encoding='utf-8') as stream:
+            stream.write('\n' + '\n'.join(missing) + '\n')
     for folder in (".local/data/airflow-workbench/lab-artifacts", ".local/qa",
                    ".docker-local", "orchestration/airflow/logs"):
         (ROOT / folder).mkdir(parents=True, exist_ok=True)

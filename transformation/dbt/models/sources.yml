@@ -1,0 +1,12 @@
+version: 2
+sources:
+  - name: stg
+    schema: stg
+    tables:
+      - name: movie_observations
+      - name: boxoffice_observations
+      - name: review_observations
+  - name: ops
+    schema: ops
+    tables:
+      - name: source_loads

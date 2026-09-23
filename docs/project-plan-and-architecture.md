@@ -10,15 +10,16 @@
 - S3: API 응답과 manifest 보존. 재시도는 동일 실행의 저장된 원본을 재사용합니다.
 - 플랫폼 PostgreSQL: 분석용 STG/DW/Mart의 목표 저장소. 서비스 DB와 별도 볼륨입니다.
 - Airflow: 일정·작업 실행·재시도. 메타데이터는 별도 `airflow` DB입니다.
-- dbt: 향후 PostgreSQL 차원·팩트·마트와 품질 검사. 현재 프로젝트는 아직 없습니다.
+- dbt: `transformation/dbt`의 PostgreSQL 차원·팩트·마트와 품질 검사.
 
 ## 현재 구현과 다음 흐름
 
 현재: KOFIC/KMDb·흥행 API → 원본 수집 DAG → S3 원본·SUCCESS/READY manifest.
 순수 Python 변환 코어는 원본 검증·정제·매칭을 수행하며 DB에 직접 쓰지 않습니다.
-Raw Asset event를 발행하지만 분석 적재를 수행하는 소비 DAG는 아직 없습니다.
+Raw Asset event를 `pop_talk_warehouse`가 소비하고 초기 SUCCESS는 수동 입력으로 처리합니다.
 
-다음: 검증된 원본 → Python STG 적재 → dbt DW/Mart → 품질 검사 → 서비스 게시.
+분석: 검증된 원본 → Python STG 적재 → dbt DW/Mart → 품질 검사 → 선택적 서비스 게시.
+리뷰는 별도 읽기 전용 스냅샷 DAG로 연결합니다. [실행 안내](phase1-pipeline.md).
 분석용 DDL·마이그레이션·적재 계정은 플랫폼에서 관리하고 서비스 DDL은 애플리케이션에서 관리합니다.
 게시 시 영화 ID·승인 상태·리뷰·관리자 보정을 보존합니다.
 

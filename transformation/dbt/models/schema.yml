@@ -1,0 +1,34 @@
+version: 2
+models:
+  - name: dim_movie
+    columns:
+      - name: movie_key
+        data_tests: [unique, not_null]
+      - name: kofic_movie_cd
+        data_tests: [unique, not_null]
+      - name: title_ko
+        data_tests: [not_null]
+  - name: dim_date
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+  - name: fct_boxoffice_daily
+    columns:
+      - name: movie_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('dim_movie')", field: movie_key}
+      - name: target_date
+        data_tests:
+          - not_null
+  - name: movie_service_map
+    columns:
+      - name: movie_key
+        data_tests: [not_null]
+  - name: fct_review
+    columns:
+      - name: movie_key
+        data_tests: [not_null]
+      - name: review_id
+        data_tests: [unique, not_null]

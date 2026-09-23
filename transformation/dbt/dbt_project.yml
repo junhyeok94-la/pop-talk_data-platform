@@ -1,0 +1,15 @@
+name: pop_talk_platform
+version: '1.0.0'
+config-version: 2
+profile: pop_talk_platform
+model-paths: [models]
+test-paths: [tests]
+macro-paths: [macros]
+models:
+  pop_talk_platform:
+    dw:
+      +schema: dw
+      +materialized: table
+    mart:
+      +schema: mart
+      +materialized: view

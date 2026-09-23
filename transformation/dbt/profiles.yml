@@ -1,0 +1,13 @@
+pop_talk_platform:
+  target: local
+  outputs:
+    local:
+      type: postgres
+      host: "{{ env_var('POP_TALK_PLATFORM_POSTGRES_HOST') }}"
+      port: "{{ env_var('POP_TALK_PLATFORM_POSTGRES_PORT', '5432') | int }}"
+      dbname: "{{ env_var('POP_TALK_PLATFORM_POSTGRES_DB') }}"
+      user: "{{ env_var('POP_TALK_PLATFORM_POSTGRES_USER') }}"
+      password: "{{ env_var('POP_TALK_PLATFORM_POSTGRES_PASSWORD') }}"
+      schema: dw
+      threads: 1
+      connect_timeout: 10

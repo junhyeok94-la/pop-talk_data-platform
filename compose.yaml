@@ -20,6 +20,7 @@ x-airflow: &airflow
     POP_TALK_PLATFORM_POSTGRES_HOST: db
     POP_TALK_PLATFORM_POSTGRES_PORT: '5432'
     POP_TALK_PLATFORM_POSTGRES_DB: ${POSTGRES_DB}
+    POP_TALK_DBT_PROJECT_DIR: /opt/airflow/dbt
     PYTHONPATH: /opt/airflow/modules:/opt/airflow/plugins:/opt/airflow/scripts:/opt/airflow
     AIRFLOW_WORKBENCH_OLLAMA_URL: http://host.docker.internal:11434
     AIRFLOW_WORKBENCH_REQUIRE_WORKER: 'true'
@@ -32,6 +33,8 @@ x-airflow: &airflow
     - ./orchestration/airflow/scripts:/opt/airflow/scripts:ro
     - ./orchestration/airflow/config:/opt/airflow/config:ro
     - ./orchestration/airflow/tests:/opt/airflow/tests:ro
+    - ./transformation/dbt:/opt/airflow/dbt:ro
+    - ./.local/data/initial:/opt/airflow/initial:ro
     - ./orchestration/airflow/logs:/opt/airflow/logs
     - ./.local/data/airflow-workbench:/opt/airflow/workbench
   extra_hosts:

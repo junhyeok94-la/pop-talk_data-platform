@@ -66,6 +66,11 @@ def sync_service(connection, movies, facts, *, cutoff, run_id, model_version):
         with connection.transaction():
             connection.execute("SET LOCAL search_path TO dev, public, cdb_admin")
             connection.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (JOB,))
+            receipt = connection.execute("SELECT source_hash,result FROM batch_runs WHERE job_name=%s AND scheduled_for=%s AND status='SUCCEEDED'", (JOB,cutoff)).fetchone()
+            if receipt:
+                if receipt[0].strip() != digest:
+                    raise RuntimeError("동일 cutoff의 DW 내용이 변경됐습니다")
+                return receipt[1]
             previous = connection.execute("SELECT scheduled_for,source_hash,result FROM batch_runs WHERE job_name=%s AND status='SUCCEEDED' ORDER BY scheduled_for DESC LIMIT 1", (JOB,)).fetchone()
             if previous and previous[0] > cutoff:
                 raise RuntimeError("최신 서비스 적재보다 오래된 DW 실행입니다")

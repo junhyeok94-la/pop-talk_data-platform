@@ -8,4 +8,10 @@ RUN pip install --no-cache-dir -r /tmp/airflow-requirements.txt \
         snowflake-snowpark-python snowflake-sqlalchemy snowflake-connector-python \
     && pip check
 
+# dbt has its own dependency environment; it must not upgrade Airflow libraries.
+COPY orchestration/airflow/dbt-requirements.txt /tmp/dbt-requirements.txt
+RUN python -m venv /home/airflow/dbt-venv \
+    && /home/airflow/dbt-venv/bin/pip install --no-cache-dir -r /tmp/dbt-requirements.txt \
+    && /home/airflow/dbt-venv/bin/pip check
+
 WORKDIR /opt/airflow
