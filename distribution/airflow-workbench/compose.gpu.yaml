@@ -1,0 +1,7 @@
+services:
+  model-worker:
+    image: ${WORKBENCH_GPU_IMAGE:-airflow-workbench-worker:0.1.2-dev-training}
+    build:
+      target: training
+    gpus: all
+    mem_limit: ${WORKBENCH_WORKER_MEMORY:-16g}

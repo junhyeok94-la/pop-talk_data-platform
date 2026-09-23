@@ -1,0 +1,13 @@
+{
+  "id": "local-gpu",
+  "name": "개발 GPU 워커",
+  "backend": "http",
+  "connection_id": "workbench_model_worker",
+  "dag_prefix": "pop_talk_model_lab",
+  "pool": "model_lab_gpu",
+  "capacity": 1,
+  "pool_slots": 1,
+  "max_active_runs": 1,
+  "timeout_seconds": 21600,
+  "poll_seconds": 3
+}

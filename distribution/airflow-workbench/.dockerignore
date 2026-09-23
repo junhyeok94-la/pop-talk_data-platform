@@ -1,0 +1,12 @@
+**
+!Dockerfile
+!Dockerfile.worker
+!requirements.txt
+!worker-requirements*.txt
+!plugins/**
+!scripts/**
+!config/**
+!worker/**
+plugins/**/frontend/**
+**/__pycache__/**
+**/test_*.py

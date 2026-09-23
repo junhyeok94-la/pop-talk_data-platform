@@ -1,0 +1,7 @@
+# Versions are locked by the constraints shipped with the pinned Airflow image.
+apache-airflow-providers-fab
+apache-airflow-providers-postgres
+apache-airflow-providers-cncf-kubernetes
+psycopg[binary]
+sqlparse
+httpx

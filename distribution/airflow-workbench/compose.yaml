@@ -1,0 +1,85 @@
+name: airflow-workbench
+
+x-airflow: &airflow
+  image: ${WORKBENCH_IMAGE:-airflow-workbench:0.1.2-dev-airflow3.3.1}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg://airflow:${POSTGRES_PASSWORD:?Run scripts/configure.py first}@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?Run scripts/configure.py first}
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?Run scripts/configure.py first}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__PARALLELISM: "4"
+    AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: "4"
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    AIRFLOW_CONN_MODEL_LAB_OLLAMA: ${AIRFLOW_CONN_MODEL_LAB_OLLAMA:?Run scripts/configure.py first}
+    AIRFLOW_CONN_MODEL_LAB_WORKER: ${AIRFLOW_CONN_MODEL_LAB_WORKER:?Run scripts/configure.py first}
+    AIRFLOW_WORKBENCH_ARTIFACT_DIR: /opt/airflow/workbench/evaluations
+  volumes:
+    - dags:/opt/airflow/dags
+    - artifacts:/opt/airflow/workbench
+    - logs:/opt/airflow/logs
+  extra_hosts:
+    - host.docker.internal:host-gateway
+  depends_on:
+    airflow-init: {condition: service_completed_successfully}
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/configure.py first}
+      POSTGRES_DB: airflow
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  airflow-init:
+    <<: *airflow
+    environment:
+      <<: *airflow-env
+      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:?Run scripts/configure.py first}
+    depends_on:
+      postgres: {condition: service_healthy}
+    command: [python, /opt/workbench/scripts/initialize.py]
+    restart: "no"
+
+  airflow-apiserver:
+    <<: *airflow
+    command: [api-server]
+    ports: ["127.0.0.1:${AIRFLOW_PORT:-8080}:8080"]
+    healthcheck:
+      test: [CMD, curl, --fail, http://localhost:8080/api/v2/monitor/health]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
+  airflow-scheduler:
+    <<: *airflow
+    command: [scheduler]
+
+  airflow-dag-processor:
+    <<: *airflow
+    command: [dag-processor]
+
+  airflow-triggerer:
+    <<: *airflow
+    command: [triggerer]
+
+volumes:
+  database:
+  dags:
+  artifacts:
+  logs:

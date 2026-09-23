@@ -1,0 +1,41 @@
+ARG WORKER_PYTHON_BASE=python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+FROM ${WORKER_PYTHON_BASE} AS source
+WORKDIR /bundle
+COPY worker/ /bundle/app/
+COPY plugins/airflow_workbench/__init__.py /bundle/plugins/airflow_workbench/
+COPY plugins/airflow_workbench/shared/__init__.py plugins/airflow_workbench/shared/contracts.py /bundle/plugins/airflow_workbench/shared/
+COPY plugins/airflow_workbench/model_lab/__init__.py plugins/airflow_workbench/model_lab/schemas.py plugins/airflow_workbench/model_lab/training.py plugins/airflow_workbench/model_lab/storage.py plugins/airflow_workbench/model_lab/portable_training.py /bundle/plugins/airflow_workbench/model_lab/
+
+# HTTP protocol/control checks. Actual training requires the training target.
+FROM ${WORKER_PYTHON_BASE} AS control
+COPY worker-requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && pip check \
+    && useradd --uid 50000 --gid 0 --create-home worker \
+    && mkdir -p /state /models /datasets/training && chown -R 50000:0 /state /models /datasets
+COPY --from=source --chown=50000:0 /bundle/app/ /app/
+COPY --from=source --chown=50000:0 /bundle/plugins/ /opt/workbench/plugins/
+ENV PYTHONPATH=/opt/workbench/plugins:/app HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+WORKDIR /app
+USER 50000:0
+CMD ["python", "-m", "uvicorn", "worker:app", "--host", "0.0.0.0", "--port", "8091", "--workers", "1"]
+
+FROM pytorch/pytorch:2.8.0-cuda12.9-cudnn9-runtime AS training
+COPY worker-requirements.txt worker-requirements-training.txt /tmp/
+RUN pip install --no-cache-dir -r /tmp/worker-requirements.txt -r /tmp/worker-requirements-training.txt && pip check \
+    && useradd --uid 50000 --gid 0 --create-home worker \
+    && mkdir -p /state /models /datasets/training && chown -R 50000:0 /state /models /datasets
+COPY --from=source --chown=50000:0 /bundle/app/ /app/
+COPY --from=source --chown=50000:0 /bundle/plugins/ /opt/workbench/plugins/
+ENV PYTHONPATH=/opt/workbench/plugins:/app HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+WORKDIR /app
+USER 50000:0
+ENTRYPOINT []
+CMD ["python", "-m", "uvicorn", "worker:app", "--host", "0.0.0.0", "--port", "8091", "--workers", "1"]
+
+# Optional Kubernetes/object-storage job entrypoint.
+FROM training AS batch
+USER root
+RUN pip install --no-cache-dir fsspec==2025.9.0 s3fs==2025.9.0 gcsfs==2025.9.0 && pip check
+USER 50000:0
+ENV HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0
+CMD ["python", "/app/batch_entrypoint.py"]

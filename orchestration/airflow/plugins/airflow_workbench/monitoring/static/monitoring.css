@@ -1,0 +1,72 @@
+main {
+  max-width: none;
+}
+.monitor-heading {
+  margin-bottom: 16px;
+}
+.monitor-heading h1 {
+  font-size: 25px;
+}
+.monitor-select {
+  min-width: 240px;
+  margin: 0;
+}
+.monitor-frame {
+  display: block;
+  width: 100%;
+  height: calc(100vh - 190px);
+  min-height: 500px;
+  border: 1px solid var(--section-line);
+  border-radius: 8px;
+  background: var(--card);
+}
+.monitor-help {
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.monitor-help summary {
+  cursor: pointer;
+}
+.monitor-card {
+  border: 1px solid var(--section-line);
+  border-radius: 8px;
+  padding: 22px;
+  background: var(--card);
+}
+.monitor-editor {
+  max-width: 900px;
+  margin: auto;
+}
+.screen-editor {
+  border: 1px solid var(--section-line);
+  border-radius: 8px;
+  padding: 18px;
+  margin: 16px 0;
+  background: var(--card);
+}
+.screen-editor legend {
+  font-weight: 700;
+}
+.screen-editor .actions {
+  justify-content: space-between;
+}
+.monitor-editor textarea {
+  min-height: 66px;
+}
+.monitor-error {
+  color: var(--red);
+}
+@media (max-width: 750px) {
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .monitor-select {
+    min-width: 150px;
+  }
+  .monitor-frame {
+    height: 70vh;
+  }
+}

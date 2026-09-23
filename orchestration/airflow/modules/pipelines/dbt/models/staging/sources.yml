@@ -1,0 +1,44 @@
+version: 2
+
+sources:
+  - name: pop_talk_staging
+    database: POP_TALK_DW_DEV
+    schema: STAGING
+    tables:
+      - name: silver_exchange_loads
+        description: Publication ledger; only SUCCESS rows authorize downstream use.
+        columns:
+          - name: exchange_ready_key
+            data_tests: [not_null, unique]
+          - name: source_run_id
+            data_tests: [not_null]
+          - name: artifact_version
+            data_tests: [not_null]
+          - name: publication_revision
+            data_tests: [not_null]
+      - name: movie_observations_raw
+        description: Immutable movie observations loaded from validated Silver exchange.
+        columns:
+          - name: source_run_id
+            data_tests: [not_null]
+          - name: artifact_version
+            data_tests: [not_null]
+          - name: canonical_movie_key
+            data_tests: [not_null]
+          - name: record_sha256
+            data_tests: [not_null]
+          - name: payload
+            data_tests: [not_null]
+      - name: boxoffice_observations_raw
+        description: Immutable daily box-office observations from validated Silver exchange.
+        columns:
+          - name: source_run_id
+            data_tests: [not_null]
+          - name: artifact_version
+            data_tests: [not_null]
+          - name: target_date
+            data_tests: [not_null]
+          - name: kofic_movie_cd
+            data_tests: [not_null]
+          - name: record_sha256
+            data_tests: [not_null]

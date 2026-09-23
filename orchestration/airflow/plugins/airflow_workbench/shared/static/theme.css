@@ -1,0 +1,73 @@
+/* Standalone defaults. The embedded view inherits Airflow's semantic tokens. */
+:root {
+  color-scheme: light;
+  --bg: #fff;
+  --card: #fff;
+  --surface: #f1f4f8;
+  --subtle-bg: #f8fafc;
+  --hover-bg: #e2e8f0;
+  --line: #e2e8f0;
+  --input-border: #b7c3d3;
+  --text: #1a2538;
+  --muted: #526580;
+  --accent: #254570;
+  --primary-bg: #365b89;
+  --primary-text: #fff;
+  --selected-bg: #eaf1fa;
+  --blue: #2563eb;
+  --red: #c83438;
+  --amber: #aa4814;
+  --success: #218144;
+  --info-bg: #eff6ff;
+  --error-bg: #fff1f2;
+  --warning-bg: #fff7ed;
+  --success-bg: #f0fdf4;
+  --focus: #365b89;
+  --font-body: Inter, "Segoe UI", "Malgun Gothic", sans-serif;
+  --shadow: 0 8px 30px #0002;
+  --backdrop: #0006;
+  --border: var(--line);
+  /* Match Dags cards: emphasized outline and muted title background. Keep
+     chart gridlines and table rows on the lighter --line token. */
+  --section-line: var(--input-border);
+  --section-header-bg: var(--surface);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111827;
+  --card: #192334;
+  --surface: #253247;
+  --subtle-bg: #162030;
+  --hover-bg: #35455c;
+  --line: #35455c;
+  --input-border: #526580;
+  --text: #edf2f8;
+  --muted: #b0bfd2;
+  --accent: #b8d1f3;
+  --primary-bg: #8ab7ec;
+  --primary-text: #14253d;
+  --selected-bg: #253b58;
+  --blue: #8ab7ff;
+  --red: #ffa3a8;
+  --amber: #f2b47c;
+  --success: #8cdbab;
+  --info-bg: #192e4c;
+  --error-bg: #3f222b;
+  --warning-bg: #3b2b20;
+  --success-bg: #1c352a;
+  --focus: #8ab7ec;
+  --shadow: 0 8px 30px #0006;
+  --backdrop: #0009;
+  --section-line: var(--line);
+  --section-header-bg: var(--card);
+}
+::selection {
+  background: var(--selected-bg);
+  color: var(--text);
+}
+:focus-visible {
+  outline-color: var(--focus);
+}
+input[type="checkbox"] {
+  accent-color: var(--primary-bg);
+}

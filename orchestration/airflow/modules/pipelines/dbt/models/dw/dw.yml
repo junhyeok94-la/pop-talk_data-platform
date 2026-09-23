@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: dim_movie
+    columns:
+      - name: movie_key
+        data_tests: [not_null, unique]
+      - name: canonical_movie_key
+        data_tests: [not_null]
+      - name: title_ko
+        data_tests: [not_null]
+  - name: fct_boxoffice_daily
+    columns:
+      - name: boxoffice_key
+        data_tests: [not_null, unique]
+      - name: target_date
+        data_tests: [not_null]
+      - name: kofic_movie_cd
+        data_tests: [not_null]

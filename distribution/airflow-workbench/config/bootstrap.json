@@ -1,0 +1,14 @@
+{
+  "endpoints": [
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "provider": "ollama",
+      "connection_id": "model_lab_ollama",
+      "capabilities": ["generation", "embedding"],
+      "pool": "model_lab_inference",
+      "capacity": 1
+    }
+  ],
+  "environments": []
+}

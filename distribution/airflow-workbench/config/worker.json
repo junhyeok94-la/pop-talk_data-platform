@@ -1,0 +1,16 @@
+{
+  "endpoints": [],
+  "environments": [
+    {
+      "id": "gpu-worker",
+      "name": "External GPU training worker",
+      "backend": "http",
+      "connection_id": "model_lab_worker",
+      "dag_prefix": "model_lab_worker",
+      "pool": "model_lab_training",
+      "capacity": 1,
+      "pool_slots": 1,
+      "workloads": ["diagnostic", "llm_sft", "embedding_contrastive"]
+    }
+  ]
+}

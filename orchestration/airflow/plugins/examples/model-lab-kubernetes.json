@@ -1,0 +1,20 @@
+{
+  "id": "training-cluster",
+  "name": "학습 Kubernetes",
+  "backend": "kubernetes",
+  "connection_id": "training_kubernetes",
+  "dag_prefix": "model_lab_cluster",
+  "pool": "model_lab_cluster_gpu",
+  "capacity": 4,
+  "pool_slots": 1,
+  "max_active_runs": 2,
+  "timeout_seconds": 21600,
+  "workloads": ["llm_sft", "embedding_contrastive"],
+  "namespace": "ml-training",
+  "service_account": "model-trainer",
+  "image": "registry.example.com/ml/trainer:1.0.0",
+  "cpu": "4",
+  "memory": "32Gi",
+  "gpu": 1,
+  "node_selector": {"workload": "training"}
+}

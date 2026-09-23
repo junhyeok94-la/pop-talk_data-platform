@@ -1,0 +1,30 @@
+services:
+  model-worker:
+    image: ${WORKBENCH_WORKER_IMAGE:-airflow-workbench-worker:0.1.2-dev-control}
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      target: ${WORKBENCH_WORKER_TARGET:-control}
+    environment:
+      MODEL_WORKER_TOKEN: ${MODEL_WORKER_TOKEN:?Run scripts/configure.py first}
+      MODEL_WORKER_ENVIRONMENT_ID: gpu-worker
+      MODEL_WORKER_STATE_API_URL: http://airflow-apiserver:8080/workbench/executor-state
+      MODEL_WORKER_STATE_DIR: /state
+      MODEL_WORKER_DATA_DIR: /datasets/training
+      MODEL_WORKER_WEIGHTS_DIR: /models
+      MODEL_WORKER_CPU_LIMIT: "2"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    volumes:
+      - worker-state:/state
+      - ./data/training:/datasets/training:ro
+      - ./models:/models:ro
+    depends_on:
+      airflow-apiserver: {condition: service_healthy}
+    init: true
+    pids_limit: 256
+    cpus: 2
+    mem_limit: ${WORKBENCH_WORKER_MEMORY:-4g}
+    restart: unless-stopped
+volumes:
+  worker-state:
