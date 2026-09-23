@@ -33,10 +33,7 @@
 
 ## 후속 연결 계약
 
-일일 DAILY_READY Asset event → `pop_talk_movie_databricks_daily` → Databricks
-Bronze/Silver → S3 Exchange → Snowflake 적재/dbt Gold → PostgreSQL serving snapshot
-활성화 순서로 자동 연결된다. 여러 READY event가 한 DagRun에 묶이면 mapped task로 각각
-처리하고 모든 load가 성공한 경우에만 Gold와 serving을 게시한다.
+일일 DAILY_READY Asset event를 발행하지만 현재 이를 소비하는 분석 적재 DAG는 없습니다. Phase 1에서 Python → PostgreSQL STG → dbt DW/Mart → 품질 검사 → 서비스 게시 경로를 새로 구현합니다.
 
 초기 snapshot은 아직 이 일일 Asset 자동 연결 범위가 아니며 별도 backfill 입력으로 관리한다.
 원본 보관과 downstream 반영 완료는 계속 구분한다. 게시/승인 상태는 배치가 강제로 바꾸지

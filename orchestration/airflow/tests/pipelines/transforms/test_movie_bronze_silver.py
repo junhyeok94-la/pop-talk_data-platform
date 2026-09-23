@@ -2,36 +2,10 @@ import copy
 import unittest
 
 from pipelines.transforms.movie_bronze_silver import (
-    PUBLICATION_ORDER_SQL, TransformContractError, choose_kmdb_match, digest, packed,
-    evaluate_kmdb_match, exchange_observations,
-    legacy_exchange_observations, silver_movie, transform_legacy_snapshot, transform_run,
+    TransformContractError, choose_kmdb_match, digest, packed,
+    evaluate_kmdb_match,
+    silver_movie, transform_legacy_snapshot, transform_run,
 )
-
-
-class PublicationContractTests(unittest.TestCase):
-    def test_revision_precedes_completion_time_for_same_source(self):
-        self.assertEqual(
-            PUBLICATION_ORDER_SQL,
-            "o.source_observed_at DESC, l.publication_revision DESC, l.completed_at DESC",
-        )
-        older_late_success = ("2026-09-09T00:00:00Z", 1, "2026-09-09T03:00:00Z")
-        fixed_earlier_success = ("2026-09-09T00:00:00Z", 2, "2026-09-09T02:00:00Z")
-        selected = max((older_late_success, fixed_earlier_success),
-                       key=lambda row: (row[0], row[1], row[2]))
-        self.assertEqual(fixed_earlier_success, selected)
-
-    def test_exchange_rows_preserve_delta_observation_identity(self):
-        output = {"silver_movies": [{"source_object_key": "movie.json"}],
-                  "silver_boxoffice": [{"source_object_key": "box.json"}]}
-        raw = {"movie.json": {"collected_at": "2026-09-09T01:00:00Z"},
-               "box.json": {"collected_at": "2026-09-09T02:00:00Z"}}
-        result = exchange_observations(output, raw, "manifests/ready.json", "a" * 64)
-        self.assertEqual("2026-09-09T01:00:00Z",
-                         result["silver_movies"][0]["source_observed_at"])
-        self.assertEqual("manifests/ready.json",
-                         result["silver_boxoffice"][0]["ready_manifest_key"])
-        self.assertEqual("a" * 64,
-                         result["silver_boxoffice"][0]["transform_version"])
 
 
 def fixture():
@@ -254,25 +228,6 @@ class TransformTests(unittest.TestCase):
                     "bytes": len(body), "record_count": 0}
         with self.assertRaisesRegex(TransformContractError, "checksum mismatch"):
             transform_legacy_snapshot(manifest, body)
-
-    def test_legacy_exchange_v2_has_unknown_source_time_and_empty_boxoffice(self):
-        body = packed([{"movie_cd": "1", "movie_nm": "영화", "open_dt": "20260101"}])
-        manifest = {
-            "schema_version": 1, "status": "SUCCESS", "key": "raw/legacy.json",
-            "bytes": len(body), "sha256": digest(body), "record_count": 1,
-        }
-        output = transform_legacy_snapshot(manifest, body)
-        exchange = legacy_exchange_observations(
-            output, manifest_key="manifests/legacy.json", transform_version="a" * 64,
-        )
-        row = exchange["silver_movies"][0]
-        self.assertEqual(
-            (row["source_observed_at"], row["source_observed_at_known"],
-             row["source_time_basis"]),
-            (None, False, "LEGACY_UNKNOWN"),
-        )
-        self.assertEqual(exchange["silver_boxoffice"], [])
-
 
 if __name__ == "__main__":
     unittest.main()

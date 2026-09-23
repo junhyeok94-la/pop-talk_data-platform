@@ -1,8 +1,7 @@
 """Validate movie raw manifests and produce deterministic Bronze/Silver rows.
 
-This module deliberately has no Airflow, boto3, or Spark dependency. A Databricks
-notebook supplies JSON documents read from S3 or a landing volume, then writes the
-returned rows to Delta tables. Keeping policy here makes it locally testable.
+Storage-independent Python validation and normalization of preserved API inputs.
+Database loading is a separate Phase 1 implementation.
 """
 from __future__ import annotations
 
@@ -15,9 +14,6 @@ from typing import Any, Mapping
 
 CONTRACT_VERSION = 1
 POLICY_VERSION = "movie-service-eligibility-v1"
-PUBLICATION_ORDER_SQL = (
-    "o.source_observed_at DESC, l.publication_revision DESC, l.completed_at DESC"
-)
 REQUIRED_STAGES = ("movie_list", "details", "kmdb_candidates", "boxoffice")
 EXCLUDED_GENRE_KEYWORDS = ("성인물", "에로", "다큐멘터리")
 EXCLUDED_COMPANIES = frozenset({
@@ -57,23 +53,6 @@ def packed(value: Any) -> bytes:
 
 def digest(value: Any) -> str:
     return hashlib.sha256(value if isinstance(value, bytes) else packed(value)).hexdigest()
-
-
-def exchange_observations(output: Mapping[str, Any], raw: Mapping[str, Any],
-                          ready_manifest_key: str, transform_version: str) -> dict[str, list[dict]]:
-    """Add the observation identity used by Delta to deterministic exchange rows."""
-    def enrich(row: Mapping[str, Any]) -> dict:
-        return {
-            **row,
-            "source_observed_at": raw[row["source_object_key"]]["collected_at"],
-            "ready_manifest_key": ready_manifest_key,
-            "transform_version": transform_version,
-        }
-
-    return {
-        "silver_movies": [enrich(row) for row in output["silver_movies"]],
-        "silver_boxoffice": [enrich(row) for row in output["silver_boxoffice"]],
-    }
 
 
 def _require(condition: bool, message: str) -> None:
@@ -477,37 +456,6 @@ def transform_legacy_snapshot(manifest: Mapping[str, Any], source_bytes: bytes) 
             "quality": {"source_run_id": source_run_id, "movie_count": len(rows),
                         "eligible_count": sum(row["policy_eligible"] for row in rows),
                         "excluded_count": sum(not row["policy_eligible"] for row in rows)}}
-
-
-def legacy_exchange_observations(
-    output: Mapping[str, Any],
-    *,
-    manifest_key: str,
-    transform_version: str,
-) -> dict[str, list[dict[str, Any]]]:
-    """Legacy Silver를 관측시각 미상인 Exchange v2 행으로 결정적으로 변환한다.
-
-    처리 시각은 재실행마다 달라지므로 JSONL에 넣지 않는다. Databricks와 Snowflake가
-    각자의 저장 메타데이터로 기록하며 source current 우선순위에는 사용하지 않는다.
-    """
-    _require(bool(manifest_key), "Legacy manifest key is required")
-    _require(bool(re.fullmatch(r"[0-9a-f]{64}", transform_version)),
-             "Legacy transform version must be a SHA-256 digest")
-    movies = []
-    for row in output.get("silver_movies") or []:
-        enriched = {
-            **row,
-            "source_observed_at": None,
-            "source_observed_at_known": False,
-            "source_time_basis": "LEGACY_UNKNOWN",
-            "ready_manifest_key": manifest_key,
-            "transform_version": transform_version,
-        }
-        movies.append(enriched)
-    movies.sort(key=lambda row: row["canonical_movie_key"])
-    _require(len({row["canonical_movie_key"] for row in movies}) == len(movies),
-             "Duplicate Legacy Exchange movie key")
-    return {"silver_movies": movies, "silver_boxoffice": []}
 
 
 def transform_run(

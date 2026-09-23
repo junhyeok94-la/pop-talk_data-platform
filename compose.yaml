@@ -14,11 +14,12 @@ x-airflow: &airflow
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__TEST_CONNECTION: Enabled
     AIRFLOW__API__EXPOSE_CONFIG: 'true'
-    AIRFLOW__COSMOS__ENABLE_TELEMETRY: 'false'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     POP_TALK_PROJECT_ROOT: /opt/airflow/modules
-    POP_TALK_DBT_DEPLOYMENT_ROOT: /opt/airflow/dbt-deployments
+    POP_TALK_PLATFORM_POSTGRES_HOST: db
+    POP_TALK_PLATFORM_POSTGRES_PORT: '5432'
+    POP_TALK_PLATFORM_POSTGRES_DB: ${POSTGRES_DB}
     PYTHONPATH: /opt/airflow/modules:/opt/airflow/plugins:/opt/airflow/scripts:/opt/airflow
     AIRFLOW_WORKBENCH_OLLAMA_URL: http://host.docker.internal:11434
     AIRFLOW_WORKBENCH_REQUIRE_WORKER: 'true'
@@ -33,9 +34,6 @@ x-airflow: &airflow
     - ./orchestration/airflow/tests:/opt/airflow/tests:ro
     - ./orchestration/airflow/logs:/opt/airflow/logs
     - ./.local/data/airflow-workbench:/opt/airflow/workbench
-    - ./.local/data/dbt-deployments:/opt/airflow/dbt-deployments:ro
-    - ./.local/data/dbt-attempt-artifacts:/opt/airflow/dbt-attempt-artifacts
-    - ./.local/config/snowflake:/keys:ro
   extra_hosts:
     - host.docker.internal:host-gateway
   depends_on:
@@ -59,21 +57,19 @@ services:
       timeout: 5s
       retries: 20
 
-  # DB 생성 → 제어 스키마 → dbt 준비 → Airflow 초기화를 한 번에 수행한다.
+  # 플랫폼 DB에서 Airflow 초기화를 한 번에 수행한다.
   airflow-init:
     <<: *airflow
     entrypoint: [python, /opt/airflow/scripts/initialize_platform.py]
     environment:
       <<: *airflow-env
-      POP_TALK_CONTROL_ADMIN_USER: ${POSTGRES_USER}
-      POP_TALK_CONTROL_ADMIN_PASSWORD: ${POSTGRES_PASSWORD}
+      POP_TALK_PLATFORM_ADMIN_USER: ${POSTGRES_USER}
+      POP_TALK_PLATFORM_ADMIN_PASSWORD: ${POSTGRES_PASSWORD}
       _AIRFLOW_WWW_USER_CREATE: 'true'
     volumes:
       - ./orchestration/airflow/modules:/opt/airflow/modules:ro
       - ./orchestration/airflow/scripts:/opt/airflow/scripts:ro
       - ./orchestration/airflow/plugins:/opt/airflow/plugins:ro
-      - ./.local/data/dbt-deployments:/opt/airflow/dbt-deployments
-      - ./.local/config/snowflake:/keys:ro
     depends_on:
       db:
         condition: service_healthy

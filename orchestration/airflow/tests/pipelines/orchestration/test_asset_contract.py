@@ -5,7 +5,6 @@ import unittest
 from pipelines.orchestration.asset_contract import (
     RAW_DAILY_DAG_ID,
     build_asset_event_extra,
-    confirm_loaded_batch,
     resolve_ready_inputs,
 )
 
@@ -119,67 +118,6 @@ class AssetContractTest(unittest.TestCase):
         conflicting = event("2026-09-10", "a" * 24, "scheduled__two")
         with self.assertRaisesRegex(ValueError, "lineage가 서로 충돌"):
             self.resolve([first, conflicting])
-
-    def test_loaded_batch_barrier_confirms_identity_and_revision(self) -> None:
-        ready = self.resolve(
-            [
-                event("2026-09-09", "a" * 24),
-                event("2026-09-10", "b" * 24, "scheduled__two"),
-            ]
-        )
-        staged = [
-            {
-                "run_id": item["raw_run_id"],
-                "ready_key": item["ready_manifest_key"],
-                "artifact_version": "c" * 64,
-                "publication_revision": 1,
-            }
-            for item in ready
-        ]
-        loaded = [
-            {
-                "source_run_id": item["raw_run_id"],
-                "artifact_version": "c" * 64,
-                "publication_revision": 1,
-                "exchange_ready_key": (
-                    "exchange/movie_silver/v1/"
-                    f"source_run_id={item['raw_run_id']}/"
-                    f"artifact_version={'c' * 64}/publication_revision=1/"
-                    "EXCHANGE_READY.json"
-                ),
-            }
-            for item in reversed(ready)
-        ]
-        result = confirm_loaded_batch(
-            ready_inputs=ready,
-            staged_results=staged,
-            loaded_results=loaded,
-            publication_revision=1,
-        )
-        self.assertEqual(result["input_count"], 2)
-        self.assertEqual(result["raw_run_ids"], ["a" * 24, "b" * 24])
-
-        swapped_staged = [dict(item) for item in staged]
-        swapped_staged[0]["ready_key"], swapped_staged[1]["ready_key"] = (
-            swapped_staged[1]["ready_key"],
-            swapped_staged[0]["ready_key"],
-        )
-        with self.assertRaisesRegex(ValueError, "해당 Raw 입력"):
-            confirm_loaded_batch(
-                ready_inputs=ready,
-                staged_results=swapped_staged,
-                loaded_results=loaded,
-                publication_revision=1,
-            )
-
-        with self.assertRaisesRegex(ValueError, "Snowflake load"):
-            confirm_loaded_batch(
-                ready_inputs=ready,
-                staged_results=staged,
-                loaded_results=loaded[:1],
-                publication_revision=1,
-            )
-
 
 if __name__ == "__main__":
     unittest.main()

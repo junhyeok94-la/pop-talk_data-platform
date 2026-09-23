@@ -88,7 +88,7 @@ run hash는 Airflow run_id와 수집 범위/collector 계약 버전에서 계산
 
 후속 DAG가 받을 XCom은 `{bucket, success_manifest_key}`다. 대량 원문·키는 XCom으로 넘기지 않는다. Silver는 SUCCESS manifest의 `stage_manifests`를 읽고 각 manifest의 `objects[].key`를 따라 payload를 로드한다. KOFIC 상세와 KMDb 후보의 연결은 `movie_cd`를 조사 키로 사용한다. 이것은 KMDb 영화와의 확정 매핑이 아니다. 표본 여부와 후보 잘림 여부를 Silver 품질 지표에도 전달해야 한다.
 
-기존 `movie_sample_e2e`의 admin snapshot JSON 구조와 다르다. 기존 Databricks 샘플 노트북에 그대로 넣지 말고 이 envelope 전용 Bronze reader를 연결한다. 기존 `dw_serving.movie_catalog`나 사용자/관리자 테이블은 이 DAG에서 변경하지 않는다.
+기존 `movie_sample_e2e`의 admin snapshot JSON 구조와 다르다. 이 envelope를 검증한 뒤 별도의 PostgreSQL 적재 단계에 전달한다. 기존 `dw_serving.movie_catalog`나 사용자/관리자 테이블은 이 DAG에서 변경하지 않는다.
 
 ## 테스트
 

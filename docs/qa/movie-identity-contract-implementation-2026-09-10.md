@@ -71,4 +71,4 @@ OK
 
 ## 다음 단계
 
-검토 승인 후 Legacy bundle/notebook과 candidate Databricks/S3/Snowflake 격리 적재를 구현한다. 기존 Main DAG와 production Gold는 변경하지 않는다.
+후속 방향은 PostgreSQL 기반 Phase 1로 변경되었습니다. 현재 계획은 docs/phase1-transition.md를 따릅니다.

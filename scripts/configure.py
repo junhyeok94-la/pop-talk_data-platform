@@ -42,19 +42,12 @@ def main():
         f"_AIRFLOW_WWW_USER_PASSWORD={secrets.token_hex(16)}",
         "POP_TALK_POSTGRES_HOST=host.docker.internal", "POP_TALK_POSTGRES_PORT=55432",
         "POP_TALK_POSTGRES_DB=pop_talk_local", "POP_TALK_POSTGRES_USER=pop_talk_local",
-        "POP_TALK_POSTGRES_PASSWORD=",
-        "POP_TALK_CONTROL_POSTGRES_HOST=db", "POP_TALK_CONTROL_POSTGRES_PORT=5432",
-        f"POP_TALK_CONTROL_POSTGRES_DB={values['POSTGRES_DB']}",
-        "POP_TALK_CONTROL_POSTGRES_USER=dw_control_runtime",
-        f"POP_TALK_CONTROL_POSTGRES_PASSWORD={secrets.token_hex(24)}",
-        "SNOWFLAKE_ACCOUNT=configure-account", "SNOWFLAKE_USER=POP_TALK_DBT_USER",
-        "SNOWFLAKE_PRIVATE_KEY_PATH=/keys/pop_talk_dbt_key.p8"])
-    for folder in (".local/data/airflow-workbench/lab-artifacts", ".local/data/dbt-deployments",
-                   ".local/data/dbt-attempt-artifacts", ".local/config/snowflake", ".local/qa",
+        "POP_TALK_POSTGRES_PASSWORD="])
+    for folder in (".local/data/airflow-workbench/lab-artifacts", ".local/qa",
                    ".docker-local", "orchestration/airflow/logs"):
         (ROOT / folder).mkdir(parents=True, exist_ok=True)
     print("Platform configuration is ready. Existing files were preserved; secrets were not printed.")
-    print("Service DB access and cloud Connections must be configured separately; see README.md.")
+    print("Configure AWS and movie API Connections for raw collection; see README.md.")
 
 if __name__ == "__main__":
     main()

@@ -23,7 +23,7 @@ ARRAYS = {"production_countries", "genres", "directors", "director_names_en", "a
 
 
 def movie_values(row):
-    """Snowflake ARRAY의 JSON 문자열을 PostgreSQL 배열로 바꾸고 신규 필수값을 검증한다."""
+    """입력 배열의 JSON 문자열을 PostgreSQL 배열로 바꾸고 신규 필수값을 검증한다."""
     if row.get("POLICY_ELIGIBLE") is not True:
         return None
     values = {"kofic_movie_cd": row.get("KOFIC_MOVIE_CD")}
@@ -57,7 +57,7 @@ def sync_service(connection, movies, facts, *, cutoff, run_id, model_version):
     if len({row["kofic_movie_cd"] for row in prepared}) != len(prepared):
         raise ValueError("DW 영화 코드 중복")
     names = ["kofic_movie_cd", *FIELDS, "source_hash"]
-    # 동일 입력의 비교 증빙. JSON 정규화로 Snowflake 날짜·Decimal을 안정적으로 기록한다.
+    # 동일 입력의 비교 증빙. JSON 정규화로 날짜·Decimal을 안정적으로 기록한다.
     digest = hashlib.sha256(json.dumps([
         sorted(movies, key=lambda row: str(row.get("KOFIC_MOVIE_CD"))),
         sorted(facts, key=lambda row: (str(row.get("KOFIC_MOVIE_CD")),str(row.get("TARGET_DATE")))),

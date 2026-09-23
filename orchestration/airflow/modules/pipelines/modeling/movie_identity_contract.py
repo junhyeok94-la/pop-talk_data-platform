@@ -85,7 +85,7 @@ def append_decision(
 ) -> tuple[DecisionEvent, bool]:
     """한 identity의 append 원장을 흉내 내며 replay는 최초 event를 반환한다.
 
-    실제 Snowflake 구현은 같은 검사를 lock/transaction 안에서 수행해야 한다.
+    실제 DB 구현은 같은 검사를 lock/transaction 안에서 수행해야 한다.
     caller가 predecessor를 현재 head에서 계산해 바꾸지 못하도록 직접 검증한다.
     """
     identity_events = sorted(

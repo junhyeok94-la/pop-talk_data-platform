@@ -1,12 +1,12 @@
 """Airflow Asset event와 영화 일일 처리 batch 사이의 순수 데이터 계약이다.
 
-Airflow 객체를 직접 import하지 않으므로 event 정규화 이후의 검증, 중복 제거와 load
-barrier 대사를 일반 단위 테스트로 검증할 수 있다.
+Airflow 객체를 직접 import하지 않으므로 event 정규화 이후의 검증과 중복 제거를
+일반 단위 테스트로 검증할 수 있다.
 """
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from typing import Any, TypedDict
 
 ASSET_CONTRACT_VERSION = 1
@@ -180,63 +180,3 @@ def resolve_ready_inputs(
             f"{max_map_length}를 초과했습니다"
         )
     return resolved
-
-
-def confirm_loaded_batch(
-    *,
-    ready_inputs: Sequence[Mapping[str, Any]],
-    staged_results: Sequence[Mapping[str, Any]],
-    loaded_results: Sequence[Mapping[str, Any]],
-    publication_revision: int,
-) -> dict[str, Any]:
-    """모든 mapped 입력이 같은 artifact/revision으로 Snowflake까지 갔는지 대사한다."""
-    expected_by_id = {
-        str(item["raw_run_id"]): str(item["ready_manifest_key"])
-        for item in ready_inputs
-    }
-    staged_by_id = {str(item["run_id"]): item for item in staged_results}
-    loaded_by_id = {str(item["source_run_id"]): item for item in loaded_results}
-    if not expected_by_id or len(expected_by_id) != len(ready_inputs):
-        raise ValueError("READY batch raw_run_id가 비었거나 중복됐습니다")
-    if (
-        len(staged_by_id) != len(staged_results)
-        or set(staged_by_id) != set(expected_by_id)
-    ):
-        raise ValueError("Databricks stage 결과가 READY batch와 일치하지 않습니다")
-    if (
-        len(loaded_by_id) != len(loaded_results)
-        or set(loaded_by_id) != set(expected_by_id)
-    ):
-        raise ValueError("Snowflake load 결과가 READY batch와 일치하지 않습니다")
-
-    artifact_versions = {str(item["artifact_version"]) for item in staged_results}
-    if len(artifact_versions) != 1:
-        raise ValueError("mapped load가 하나의 처리 artifact를 공유하지 않습니다")
-    revisions = {int(item["publication_revision"]) for item in staged_results}
-    if revisions != {publication_revision}:
-        raise ValueError("mapped load publication revision이 입력과 다릅니다")
-    artifact_version = next(iter(artifact_versions))
-    for raw_run_id, expected_ready_key in expected_by_id.items():
-        staged_item = staged_by_id[raw_run_id]
-        if str(staged_item["ready_key"]) != expected_ready_key:
-            raise ValueError("stage 결과의 READY key가 해당 Raw 입력과 다릅니다")
-        loaded_item = loaded_by_id[raw_run_id]
-        if str(loaded_item["artifact_version"]) != artifact_version:
-            raise ValueError("Snowflake load artifact가 해당 stage 입력과 다릅니다")
-        if int(loaded_item["publication_revision"]) != publication_revision:
-            raise ValueError("Snowflake load revision이 해당 stage 입력과 다릅니다")
-        expected_exchange_key = (
-            "exchange/movie_silver/v1/"
-            f"source_run_id={raw_run_id}/artifact_version={artifact_version}/"
-            f"publication_revision={publication_revision}/EXCHANGE_READY.json"
-        )
-        if str(loaded_item["exchange_ready_key"]) != expected_exchange_key:
-            raise ValueError(
-                "Snowflake load의 Exchange READY lineage가 해당 입력과 다릅니다"
-            )
-    return {
-        "input_count": len(ready_inputs),
-        "raw_run_ids": sorted(expected_by_id),
-        "artifact_version": artifact_version,
-        "publication_revision": publication_revision,
-    }

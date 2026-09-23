@@ -25,7 +25,7 @@ API 순회, 파일 검증, 체크섬 계산, 변환, SQL 적재, 트랜잭션 �
 
 - 입력이 어떤 검증을 통과했다고 가정하는가
 - 출력/XCom이 다음 태스크에 무엇을 보장하는가
-- S3, Databricks, Snowflake, PostgreSQL 중 어디를 변경하는가
+- S3, 플랫폼 PostgreSQL, 서비스 PostgreSQL 중 어디를 변경하는가
 - 재시도할 때 같은 결과를 재사용하는가, 새 실행을 만드는가
 - 어떤 실패는 안전하게 재시도할 수 있고 어떤 실패는 새 DAG run이 필요한가
 
@@ -60,7 +60,7 @@ DAG 파일은 아래 순서를 따른다.
 명명 규칙은 다음과 같다.
 
 - DAG ID: `pop_talk_<도메인>_<주기 또는 목적>`
-- 태스크 ID/함수: `동사_대상` (`stage_bundle`, `load_snowflake`)
+- 태스크 ID/함수: `동사_대상` (`collect_boxoffice`, `load_staging`)
 - Connection ID: `pop_talk_<서비스>`
 - 결과 변수: 완료 상태를 나타내는 과거분사 (`staged`, `published`, `loaded`)
 - 진단용 DAG에는 `canary`, `probe`, `check` 중 하나를 이름과 tag에 명시
@@ -129,23 +129,20 @@ baseline에서도 이 값을 검사한다.
 
 모든 외부 부작용 태스크는 재실행 계약을 가져야 한다.
 
-- S3 Raw/Exchange는 불변 key와 조건부 쓰기를 사용한다.
+- S3 Raw는 불변 key와 조건부 쓰기를 사용한다.
 - 완료 marker(`SUCCESS`, `READY`)는 데이터와 검증 결과를 모두 쓴 뒤 마지막에 게시한다.
-- Databricks 원격 실행에는 동일 논리 시도를 식별하는 idempotency token을 사용한다.
-- Snowflake 다중 테이블 적재는 하나의 게시 단위로 commit/rollback한다.
-- PostgreSQL serving은 검증된 snapshot을 적재한 뒤 active pointer만 원자적으로 교체한다.
+- PostgreSQL 다중 테이블 적재는 하나의 게시 단위로 commit/rollback한다.
+- 서비스 게시는 기존 영화 ID·관리자 상태·리뷰를 보존하며 원천 소유 필드만 갱신한다.
 - 늦게 끝난 과거 실행이 최신 데이터를 되돌리지 못하도록 revision/generation을 비교한다.
 
 쓰기 DAG는 기본적으로 `max_active_runs=1`을 명시한다. API quota 또는 공유 자원을 보호해야
 하면 `max_active_tasks`, pool, concurrency 제한을 함께 사용한다. retry 횟수, 지연,
 exponential backoff와 execution timeout은 외부 시스템의 실패 특성에 맞춰 명시한다.
-`max_active_runs=1`은 같은 DAG의 run만 제한하며 다른 DAG나 직접 실행한 Databricks Job까지
+`max_active_runs=1`은 같은 DAG의 run만 제한하며 다른 DAG나 직접 실행한 적재 스크립트까지
 직렬화하지 않는다. 여러 진입점이 같은 자원을 변경하면 pool 또는 대상 시스템의 lock/ledger로
-보호한다. Jobs API 응답을 잃어 동일 시도를 재확인할 때에는 같은 attempt token을 사용하고,
-원격 실행이 실제 실패하여 새 처리를 만들 때에만 명시적으로 attempt를 올린다.
+보호한다. 실행 결과가 불확실하면 같은 입력 식별자로 처리 이력을 확인한다.
 
-Snowflake에서는 트랜잭션을 암묵적으로 commit할 수 있는 DDL과 임시 입력 준비를 업무 DML의
-`BEGIN` 전에 끝낸다. PostgreSQL serving 게시에서는 snapshot 검증, active pointer 교체와
+PostgreSQL 서비스 게시에서는 입력 검증, 영화·흥행 갱신과
 성공 상태 기록을 같은 트랜잭션으로 처리한다. commit 결과가 불확실하면 같은 식별자로 저장
 상태를 재조회하며, key·count뿐 아니라 실제 canonical payload digest도 대사한다.
 
@@ -202,7 +199,7 @@ publication revision과 processing attempt/idempotency token의 기존 의미를
 ## 9. Operator와 코드 표현
 
 - Python 흐름과 작은 메타데이터 전달은 TaskFlow `@task`를 사용한다.
-- Databricks Jobs, Bash처럼 provider가 재시도·상태 추적을 제공하는 작업은 공식 Operator를
+- Bash처럼 provider가 재시도·상태 추적을 제공하는 작업은 공식 Operator를
   사용한다.
 - 긴 SQL과 shell 문자열은 DAG 안에 묻지 않고 `.sql`, 스크립트 또는 테스트 가능한 모듈로
   분리한다.
@@ -264,12 +261,10 @@ DAG 변경은 다음을 모두 만족해야 완료다.
 
 ## 13. 기존 DAG 적용 순서
 
-1. `pop_talk_movie_databricks_daily`: 전체 파이프라인이므로 가장 먼저 orchestration과
-   runtime 로직을 분리하고 결과 계약을 타입화한다.
-2. `pop_talk_movie_raw_daily`, `pop_talk_movie_raw_initial`: 공통 runtime 생성과 수집 단계
+1. `pop_talk_movie_raw_daily`, `pop_talk_movie_raw_initial`: 공통 runtime 생성과 수집 단계
    설명을 통일한다.
-3. `pop_talk_environment_check`, `pop_talk_s3_canary`,
-   `pop_talk_snowflake_transaction_probe`: 진단 DAG 예외 기준과 시간대·pause 기준을 맞춘다.
+2. `pop_talk_environment_check`, `pop_talk_s3_canary`: 진단 DAG 예외 기준과 시간대·pause 기준을 맞춘다.
+3. PostgreSQL STG·DW/Mart DAG는 Phase 1에서 새로 구현한다.
 
 리팩터링은 데이터 계약, S3 key, task ID, schedule과 멱등성 의미를 바꾸지 않는 동작 보존
 변경으로 진행한다. 기존 DAG에는 §4의 호환성 우선순위를 적용한다. 실행 코드를 추출·이동하면

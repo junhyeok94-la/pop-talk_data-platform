@@ -13,7 +13,7 @@ from airflow.sdk import dag, task
 
 AWS_CONN_ID = "pop_talk_aws"
 BUCKET_NAME = "amzn-s3-pop-talk-dw-047342411109-ap-northeast-2-an"
-PREFIXES = ("raw/", "manifests/", "exchange/")
+PREFIXES = ("raw/", "manifests/")
 
 
 @dag(
@@ -25,7 +25,7 @@ PREFIXES = ("raw/", "manifests/", "exchange/")
     tags=["pop-talk", "aws", "s3", "canary"],
 )
 def s3_canary():
-    """bucket 존재 확인 후 Raw/manifest/Exchange prefix를 관찰한다."""
+    """bucket 존재 확인 후 Raw/manifest prefix를 관찰한다."""
 
     @task
     def check_bucket() -> str:
