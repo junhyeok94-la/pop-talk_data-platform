@@ -2,7 +2,6 @@
 from pathlib import Path
 import base64
 import secrets
-from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,8 +28,7 @@ def required(values, names):
 def main():
     write_new(".env", ["POSTGRES_USER=pop_talk_platform", f"POSTGRES_PASSWORD={secrets.token_hex(24)}",
         "POSTGRES_DB=pop_talk_platform", "POSTGRES_PORT=55433",
-        "POSTGRES_VOLUME_NAME=pop-talk-data-platform_postgres_data",
-        "APPLICATION_NETWORK=pop-talk-application_default"])
+        "POSTGRES_VOLUME_NAME=pop-talk-data-platform_postgres_data"])
     values = read_env(".env")
     required(values, ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"))
     password = secrets.token_hex(24)

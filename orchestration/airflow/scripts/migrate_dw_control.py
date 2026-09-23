@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""서비스 PostgreSQL에 ``dw_control`` 전용 role과 versioned schema를 만든다.
+"""플랫폼 PostgreSQL에 ``dw_control`` 전용 role과 versioned schema를 만든다.
 
 마이그레이션 접속자는 로컬 DB owner 권한을 사용하지만, DAG가 사용하는 runtime role에는
 DDL·DELETE·TRUNCATE 권한이나 다른 schema role membership을 주지 않는다.
@@ -132,11 +132,11 @@ def migrate(
 
 def main() -> None:
     with psycopg.connect(
-        host=_required("POP_TALK_POSTGRES_HOST"),
-        port=int(os.environ.get("POP_TALK_POSTGRES_PORT", "5432")),
-        dbname=_required("POP_TALK_POSTGRES_DB"),
-        user=_required("POP_TALK_POSTGRES_USER"),
-        password=_required("POP_TALK_POSTGRES_PASSWORD"),
+        host=_required("POP_TALK_CONTROL_POSTGRES_HOST"),
+        port=int(os.environ.get("POP_TALK_CONTROL_POSTGRES_PORT", "5432")),
+        dbname=_required("POP_TALK_CONTROL_POSTGRES_DB"),
+        user=_required("POP_TALK_CONTROL_ADMIN_USER"),
+        password=_required("POP_TALK_CONTROL_ADMIN_PASSWORD"),
     ) as connection:
         applied = migrate(
             connection,

@@ -1,235 +1,107 @@
 name: pop-talk-data-platform
+
+x-airflow: &airflow
+  image: pop-talk-airflow:3.3.1-local
+  build:
+    context: .
+    dockerfile: orchestration/airflow/Dockerfile
+  env_file: .local/config/airflow.env
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__PARALLELISM: '4'
+    AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '4'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__TEST_CONNECTION: Enabled
+    AIRFLOW__API__EXPOSE_CONFIG: 'true'
+    AIRFLOW__COSMOS__ENABLE_TELEMETRY: 'false'
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    POP_TALK_PROJECT_ROOT: /opt/airflow/modules
+    POP_TALK_DBT_DEPLOYMENT_ROOT: /opt/airflow/dbt-deployments
+    PYTHONPATH: /opt/airflow/modules:/opt/airflow/plugins:/opt/airflow/scripts:/opt/airflow
+    AIRFLOW_WORKBENCH_OLLAMA_URL: http://host.docker.internal:11434
+    AIRFLOW_WORKBENCH_REQUIRE_WORKER: 'true'
+    # 관리자 생성은 초기화 서비스에서만 실행한다.
+    _AIRFLOW_WWW_USER_CREATE: ''
+  volumes:
+    - ./orchestration/airflow/dags:/opt/airflow/dags
+    - ./orchestration/airflow/plugins:/opt/airflow/plugins
+    - ./orchestration/airflow/modules:/opt/airflow/modules:ro
+    - ./orchestration/airflow/scripts:/opt/airflow/scripts:ro
+    - ./orchestration/airflow/config:/opt/airflow/config:ro
+    - ./orchestration/airflow/tests:/opt/airflow/tests:ro
+    - ./orchestration/airflow/logs:/opt/airflow/logs
+    - ./.local/data/airflow-workbench:/opt/airflow/workbench
+    - ./.local/data/dbt-deployments:/opt/airflow/dbt-deployments:ro
+    - ./.local/data/dbt-attempt-artifacts:/opt/airflow/dbt-attempt-artifacts
+    - ./.local/config/snowflake:/keys:ro
+  extra_hosts:
+    - host.docker.internal:host-gateway
+  depends_on:
+    airflow-init:
+      condition: service_completed_successfully
+
 services:
   db:
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Run python scripts/configure.py first}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python scripts/configure.py first}
+      POSTGRES_DB: ${POSTGRES_DB:?Run python scripts/configure.py first}
     ports:
-    - 127.0.0.1:${POSTGRES_PORT:-55433}:5432
+      - 127.0.0.1:${POSTGRES_PORT:-55433}:5432
     volumes:
-    - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test:
-      - CMD-SHELL
-      - pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
+      test: [CMD-SHELL, 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 5s
       timeout: 5s
       retries: 20
-  airflow-db-init:
-    image: postgres:17
-    profiles:
-    - airflow
-    env_file:
-    - .env
-    - .local/config/airflow.env
+
+  # DB 생성 → 제어 스키마 → dbt 준비 → Airflow 초기화를 한 번에 수행한다.
+  airflow-init:
+    <<: *airflow
+    entrypoint: [python, /opt/airflow/scripts/initialize_platform.py]
+    environment:
+      <<: *airflow-env
+      POP_TALK_CONTROL_ADMIN_USER: ${POSTGRES_USER}
+      POP_TALK_CONTROL_ADMIN_PASSWORD: ${POSTGRES_PASSWORD}
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+    volumes:
+      - ./orchestration/airflow/modules:/opt/airflow/modules:ro
+      - ./orchestration/airflow/scripts:/opt/airflow/scripts:ro
+      - ./orchestration/airflow/plugins:/opt/airflow/plugins:ro
+      - ./.local/data/dbt-deployments:/opt/airflow/dbt-deployments
+      - ./.local/config/snowflake:/keys:ro
     depends_on:
       db:
         condition: service_healthy
-    entrypoint:
-    - /bin/sh
-    - -c
-    command:
-    - "export PGPASSWORD=\"$${POSTGRES_PASSWORD}\"\npsql -v ON_ERROR_STOP=1 \\\n \
-      \ -h db -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" \\\n  -v airflow_user=\"\
-      $${AIRFLOW_DB_USER}\" \\\n  -v airflow_password=\"$${AIRFLOW_DB_PASSWORD}\"\
-      \ \\\n  -f /scripts/create-airflow-database.sql\n"
-    volumes:
-    - ./orchestration/airflow/scripts/create-airflow-database.sql:/scripts/create-airflow-database.sql:ro
-  airflow-init:
-    image: pop-talk-airflow:3.3.1-local
-    build: &id001
-      context: .
-      dockerfile: orchestration/airflow/Dockerfile
-    profiles: &id002
-    - airflow
-    env_file: .local/config/airflow.env
-    environment: &id003
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__PARALLELISM: '4'
-      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '4'
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW__CORE__TEST_CONNECTION: Enabled
-      AIRFLOW__API__EXPOSE_CONFIG: 'true'
-      AIRFLOW__COSMOS__ENABLE_TELEMETRY: 'false'
-      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
-      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-      POP_TALK_PROJECT_ROOT: /opt/airflow/modules
-      POP_TALK_DBT_DEPLOYMENT_ROOT: /opt/airflow/dbt-deployments
-      PYTHONPATH: /opt/airflow/modules:/opt/airflow/plugins:/opt/airflow/scripts:/opt/airflow
-      AIRFLOW_WORKBENCH_OLLAMA_URL: http://host.docker.internal:11434
-      AIRFLOW_WORKBENCH_REQUIRE_WORKER: 'true'
-    volumes: &id004
-    - ./orchestration/airflow/dags:/opt/airflow/dags
-    - ./orchestration/airflow/plugins:/opt/airflow/plugins
-    - ./.local/data/airflow-workbench:/opt/airflow/workbench
-    - ./orchestration/airflow/logs:/opt/airflow/logs
-    - ./orchestration/airflow/config:/opt/airflow/config:ro
-    - ./orchestration/airflow/tests:/opt/airflow/tests:ro
-    - ./.local/data/dbt-deployments:/opt/airflow/dbt-deployments:ro
-    - ./.local/data/dbt-attempt-artifacts:/opt/airflow/dbt-attempt-artifacts
-    - ./orchestration/airflow/modules:/opt/airflow/modules:ro
-    - ./orchestration/airflow/scripts:/opt/airflow/scripts:ro
-    - ./.local/config/snowflake:/keys:ro
-    depends_on:
-      airflow-db-init:
-        condition: service_completed_successfully
-    command:
-    - bash
-    - -c
-    - airflow db migrate && PYTHONPATH=/opt/airflow/plugins python -m airflow_workbench.metadata
-      && airflow pools set pop_talk_dbt_pool 1 "dbt 모델은 직렬 실행하여 Snowflake 개발 warehouse
-      경합을 방지" && airflow pools set model_lab_gpu 1 "Model Lab external GPU jobs" --include-deferred
-    extra_hosts:
-    - host.docker.internal:host-gateway
+
   airflow-apiserver:
-    image: pop-talk-airflow:3.3.1-local
-    build: *id001
-    profiles: *id002
-    env_file: .local/config/airflow.env
-    environment: *id003
-    volumes: *id004
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-    command:
-    - api-server
+    <<: *airflow
+    command: api-server
     ports:
-    - 127.0.0.1:8080:8080
+      - 127.0.0.1:8080:8080
     healthcheck:
-      test:
-      - CMD
-      - curl
-      - --fail
-      - http://localhost:8080/api/v2/monitor/health
+      test: [CMD, curl, --fail, http://localhost:8080/api/v2/monitor/health]
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 30s
-    extra_hosts:
-    - host.docker.internal:host-gateway
+
   airflow-scheduler:
-    image: pop-talk-airflow:3.3.1-local
-    build: *id001
-    profiles: *id002
-    env_file: .local/config/airflow.env
-    environment: *id003
-    volumes: *id004
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-    command:
-    - scheduler
-    extra_hosts:
-    - host.docker.internal:host-gateway
+    <<: *airflow
+    command: scheduler
+
   airflow-dag-processor:
-    image: pop-talk-airflow:3.3.1-local
-    build: *id001
-    profiles: *id002
-    env_file: .local/config/airflow.env
-    environment: *id003
-    volumes: *id004
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-    command:
-    - dag-processor
-    extra_hosts:
-    - host.docker.internal:host-gateway
+    <<: *airflow
+    command: dag-processor
+
   airflow-triggerer:
-    image: pop-talk-airflow:3.3.1-local
-    build: *id001
-    profiles: *id002
-    env_file: .local/config/airflow.env
-    environment: *id003
-    volumes: *id004
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-    command:
-    - triggerer
-    extra_hosts:
-    - host.docker.internal:host-gateway
-  model-worker:
-    image: pop-talk-model-worker:control
-    build:
-      context: .
-      dockerfile: orchestration/model_worker/Dockerfile
-      target: control
-    profiles:
-    - mlops
-    env_file:
-    - path: .local/config/model-worker.env
-      required: false
-    environment:
-      MODEL_WORKER_STATE_API_URL: http://airflow-apiserver:8080/workbench/executor-state
-      MODEL_WORKER_ENVIRONMENT_ID: local-gpu
-      MODEL_WORKER_STATE_DIR: /state
-      MODEL_WORKER_DATA_DIR: /datasets/training
-      MODEL_WORKER_WEIGHTS_DIR: /models
-      AIRFLOW_WORKBENCH_TRAINING_DATA_DIR: /datasets/training
-      MODEL_WORKER_CPU_LIMIT: '2'
-      HF_HUB_OFFLINE: '1'
-      TRANSFORMERS_OFFLINE: '1'
-    volumes:
-    - ./orchestration/model_worker:/app:ro
-    - ./orchestration/airflow/plugins:/opt/airflow/plugins:ro
-    - ./.local/data/model-worker:/state
-    - ./datasets:/datasets:ro
-    - ./.local/models/huggingface:/models:ro
-    gpus: all
-    mem_limit: 6g
-    cpus: 2
-    pids_limit: 128
-    init: true
-    restart: unless-stopped
-  airflow-dbt-prepare:
-    entrypoint: [python]
-    image: pop-talk-airflow:3.3.1-local
-    build:
-      context: .
-      dockerfile: orchestration/airflow/Dockerfile
-    profiles:
-    - airflow
-    env_file: .local/config/airflow.env
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__PARALLELISM: '4'
-      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '4'
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW__CORE__TEST_CONNECTION: Enabled
-      AIRFLOW__API__EXPOSE_CONFIG: 'true'
-      AIRFLOW__COSMOS__ENABLE_TELEMETRY: 'false'
-      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
-      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-      POP_TALK_PROJECT_ROOT: /opt/airflow/modules
-      POP_TALK_DBT_DEPLOYMENT_ROOT: /opt/airflow/dbt-deployments
-      PYTHONPATH: /opt/airflow/modules:/opt/airflow/plugins:/opt/airflow/scripts:/opt/airflow
-      AIRFLOW_WORKBENCH_OLLAMA_URL: http://host.docker.internal:11434
-      AIRFLOW_WORKBENCH_REQUIRE_WORKER: 'true'
-    volumes:
-    - ./orchestration/airflow/dags:/opt/airflow/dags
-    - ./orchestration/airflow/plugins:/opt/airflow/plugins
-    - ./.local/data/airflow-workbench:/opt/airflow/workbench
-    - ./orchestration/airflow/logs:/opt/airflow/logs
-    - ./orchestration/airflow/config:/opt/airflow/config:ro
-    - ./orchestration/airflow/tests:/opt/airflow/tests:ro
-    - ./.local/data/dbt-deployments:/opt/airflow/dbt-deployments
-    - ./.local/data/dbt-attempt-artifacts:/opt/airflow/dbt-attempt-artifacts
-    - ./orchestration/airflow/modules:/opt/airflow/modules:ro
-    - ./orchestration/airflow/scripts:/opt/airflow/scripts:ro
-    - ./.local/config/snowflake:/keys:ro
-    command:
-    - /opt/airflow/scripts/deploy_dbt_cosmos_artifact.py
-    - --source
-    - /opt/airflow/modules/pipelines/dbt
-    - --output
-    - /opt/airflow/dbt-deployments
-    extra_hosts:
-    - host.docker.internal:host-gateway
+    <<: *airflow
+    command: triggerer
+
 volumes:
   postgres_data:
     name: ${POSTGRES_VOLUME_NAME:-pop-talk-data-platform_postgres_data}

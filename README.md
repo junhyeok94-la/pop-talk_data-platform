@@ -26,15 +26,26 @@ Docker Compose v2와 Python 3.10+ 설정 도구가 필요합니다. 저장소 �
 
 ```console
 python scripts/configure.py
-docker compose --profile airflow build
-docker compose --profile airflow run --rm --no-deps airflow-dbt-prepare
-docker compose --profile airflow up -d airflow-apiserver airflow-scheduler airflow-dag-processor airflow-triggerer
+docker compose up -d --build
 ```
 
-`airflow-dbt-prepare`는 dbt parse와 모델·검사 목록을 검증해 로컬 불변 실행 스냅샷을 만듭니다.
-실제 클라우드 수집·적재 작업을 실행하지 않습니다. 소스 또는 profile을 수정하면 다시 실행합니다.
+`airflow-init`이 플랫폼 DB의 제어 스키마, Airflow DB·관리자·Workbench·Pool,
+dbt 실행 스냅샷을 준비한 뒤 Airflow 프로세스가 시작됩니다.
+dbt 준비는 parse와 모델·검사 목록만 검증하며 실제 클라우드 수집·적재 작업은 실행하지 않습니다.
+초기화 로그는 `docker compose logs airflow-init`으로 확인합니다.
 Airflow는 8080, 플랫폼 PostgreSQL은 55433을 사용합니다. Airflow metadata DB와 서비스 DB를 분리했습니다.
 최초 관리자 접속 정보는 Git에서 제외된 `.local/config/airflow.env`에 있습니다.
+
+기본 구성은 DB와 Airflow 프로세스 4개, 일회성 초기화 서비스 1개입니다.
+기존 영화 DAG의 비동기 대기를 위해 triggerer를 포함합니다. 모델 워커는 기본 실행에 포함하지 않습니다.
+dbt 소스 또는 profile을 수정하면 다음 명령으로 실행 스냅샷을 갱신합니다.
+
+```console
+docker compose run --rm --no-deps airflow-init
+```
+
+이 명령은 이미 실행 중인 플랫폼 DB를 사용합니다. 초기화는 재실행 가능하며 기존 설정·데이터를 유지합니다.
+일반 종료는 `docker compose stop`을 사용합니다.
 
 이후 AWS·Databricks·Snowflake Connections, `.local/config/snowflake`의 개인키,
 `airflow.env`의 Snowflake profile 환경변수를 설정해야 기존 클라우드 DAG를 실행할 수 있습니다.
@@ -47,19 +58,26 @@ DAG는 기본 일시정지 상태이며 설치만으로 원격 데이터 작업�
 `.local/config/airflow.env`의 `POP_TALK_POSTGRES_*`에 애플리케이션 DB 연결 정보를 지정하세요.
 플랫폼 자체 DB의 `POSTGRES_*`와 구분합니다. 서비스 비밀번호 기본값은 비어 있습니다.
 
-두 저장소의 Compose를 Docker 네트워크로 연결하려면 먼저 애플리케이션 DB를 시작하고 다음을 사용합니다.
-이 방식은 Linux에서도 호스트 loopback 포트에 의존하지 않습니다.
+서비스 DB 연결은 영화·흥행 게시 시 필요하며 플랫폼 초기화에는 필요하지 않습니다.
+별도 Compose 연결 파일 없이 `airflow.env`에서 접속 대상을 관리합니다.
+Docker Desktop 이외의 Linux 환경에서는 컨테이너에서 접근 가능한 DB 주소와 포트를 지정해야 합니다.
+서비스 ID·승인 상태·리뷰·관리자 수정값의 소유권은 [연결 계약](docs/repository-boundary.md)을 따릅니다.
 
-```console
-docker compose -f compose.yaml -f compose.application.yaml --profile airflow up -d airflow-apiserver airflow-scheduler airflow-dag-processor airflow-triggerer
+## 선택 기능: 모델 워커
+
+GPU 모델 실험이 필요할 때만 워커 인증 설정을 준비하고 추가 파일을 사용합니다.
+
+```powershell
+./orchestration/airflow/scripts/prepare-model-lab.ps1
+docker compose -f compose.yaml -f compose.mlops.yaml up -d --build
 ```
 
-외부 네트워크는 애플리케이션 Compose가 생성합니다. 이름을 변경했다면 `.env`의 `APPLICATION_NETWORK`를 수정합니다.
-서비스 ID·승인 상태·리뷰·관리자 수정값의 소유권은 [연결 계약](docs/repository-boundary.md)을 따릅니다.
+GPU가 필요합니다. 함께 종료하려면 `docker compose -f compose.yaml -f compose.mlops.yaml stop`을 사용합니다.
 
 ## 검증과 다음 단계
 
 [회귀 테스트](orchestration/airflow/tests/README.md), [분리 검증 결과](docs/repository-split-validation.md),
+[Compose 단순화 검증](docs/compose-simplification.md),
 [Phase 1 전환 계획](docs/phase1-transition.md)을 참고하세요.
 `docs/qa`의 날짜가 붙은 문서는 분리 전 검증 기록이며 이번 커밋의 성공 증빙이 아닙니다.
 해당 문서에서 참조한 로컬 화면 캡처·운영 데이터는 공개 저장소에 포함하지 않습니다.

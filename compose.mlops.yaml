@@ -1,0 +1,36 @@
+# 선택 실행: docker compose -f compose.yaml -f compose.mlops.yaml up -d --build
+services:
+  model-worker:
+    image: pop-talk-model-worker:control
+    build:
+      context: .
+      dockerfile: orchestration/model_worker/Dockerfile
+      target: control
+    env_file:
+      - path: .local/config/model-worker.env
+        required: false
+    environment:
+      MODEL_WORKER_STATE_API_URL: http://airflow-apiserver:8080/workbench/executor-state
+      MODEL_WORKER_ENVIRONMENT_ID: local-gpu
+      MODEL_WORKER_STATE_DIR: /state
+      MODEL_WORKER_DATA_DIR: /datasets/training
+      MODEL_WORKER_WEIGHTS_DIR: /models
+      AIRFLOW_WORKBENCH_TRAINING_DATA_DIR: /datasets/training
+      MODEL_WORKER_CPU_LIMIT: '2'
+      HF_HUB_OFFLINE: '1'
+      TRANSFORMERS_OFFLINE: '1'
+    volumes:
+      - ./orchestration/model_worker:/app:ro
+      - ./orchestration/airflow/plugins:/opt/airflow/plugins:ro
+      - ./.local/data/model-worker:/state
+      - ./datasets:/datasets:ro
+      - ./.local/models/huggingface:/models:ro
+    depends_on:
+      airflow-apiserver:
+        condition: service_healthy
+    gpus: all
+    mem_limit: 6g
+    cpus: 2
+    pids_limit: 128
+    init: true
+    restart: unless-stopped

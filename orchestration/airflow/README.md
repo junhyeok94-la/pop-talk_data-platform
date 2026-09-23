@@ -1,4 +1,4 @@
-> 저장소 분리(2026-09-23) 전의 설명입니다. 현재 설치·DB 분리·연결 방법은 저장소 루트 README.md를 우선합니다.
+> 실행 안내는 현재 플랫폼 구성을 기준으로 합니다. 아래 기능별 설명에는 분리 전 기록이 포함되어 있으며 저장소 루트 README.md를 우선합니다.
 
 # Pop Talk Airflow 3.3.1 local orchestration
 
@@ -7,19 +7,17 @@ DAG 작성과 검토에는 [DAG 개발 표준](DAG_DEVELOPMENT_STANDARD.md)을 �
 있는 `orchestration/airflow/modules/pipelines/` 모듈에 둡니다. 함수·태스크·Connection ID는 실행 호환성을 위해 영어를
 사용합니다.
 
-이 구성은 기존 Pop Talk PostgreSQL 컨테이너를 공유하지만 Airflow 메타데이터는
-별도 `airflow` 데이터베이스와 `airflow_user`에 저장합니다. 서비스 데이터베이스의
-스키마와 Airflow 테이블은 섞이지 않습니다.
+플랫폼 전용 PostgreSQL에 제어 상태를 저장하고 Airflow 메타데이터는
+별도 `airflow` 데이터베이스와 `airflow_user`에 저장합니다.
+애플리케이션 서비스 DB는 별도 컨테이너·볼륨을 사용합니다.
 
 ## 준비 및 실행
 
 PowerShell에서 한 번 실행합니다.
 
 ```powershell
-.\orchestration\airflow\scripts\prepare-airflow.ps1
-docker compose --profile airflow build
-docker compose --profile airflow up airflow-init
-docker compose --profile airflow up -d airflow-apiserver airflow-scheduler airflow-dag-processor airflow-triggerer
+python scripts/configure.py
+docker compose up -d --build
 ```
 
 UI는 <http://localhost:8080>에서 열립니다. 최초 로그인 정보는

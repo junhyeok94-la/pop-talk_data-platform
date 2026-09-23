@@ -9,7 +9,8 @@ PowerShell 명령은 프로젝트 루트에서 실행합니다. Python 도구는
 | `prepare-model-lab.ps1` | 학습 워커 설정과 연결 토큰 준비 |
 | `start-local-ollama.ps1` | `.local/models/ollama`의 모델로 로컬 추론 서버 실행 |
 | `register-movie-api-connections.ps1` | 영화 API Connection 등록 |
-| `migrate_dw_control.py`, `create-airflow-database.sql` | Compose 초기화에서 사용하는 DB 준비 |
+| `initialize_platform.py` | Compose 일회성 초기화: 플랫폼 제어 스키마·Airflow DB·dbt 스냅샷·Workbench·Pool |
+| `migrate_dw_control.py` | 플랫폼 제어 스키마 마이그레이션. `POP_TALK_CONTROL_POSTGRES_*` 대상에 `POP_TALK_CONTROL_ADMIN_USER/PASSWORD`로 접속 |
 | `migrate_workbench_postgres.py`, `migrate_executor_state.py` | 이전 SQLite에서 PostgreSQL로 이전하는 일회성 관리 도구 |
 | `prepare-workbench-*.cjs`, `workbench-monitoring.sql` | 모니터링용 연결·조회 권한 구성 |
 | `prepare_model_lab_workflow.py` | 표준입력의 프로젝트 프로필을 Model Lab에 등록 |
